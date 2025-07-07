@@ -20,6 +20,9 @@ import userRouter from './routes/user.routes.js'
 
 //Routes declaration
 app.use("/api/v1/users", userRouter)
+app.use((req, res) => {
+    res.status(404).send("Route not found");
+});
 //http://localhost:8000/api/v1/users/register
 
 export {app};
