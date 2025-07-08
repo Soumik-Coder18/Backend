@@ -1,5 +1,5 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
-import {apiErrors} from "../utils/apiErrors.js";
+import { apiError } from "../utils/apiError.js";
 import {User} from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import {apiResponse} from "../utils/apiResponse.js"
@@ -7,7 +7,7 @@ import {apiResponse} from "../utils/apiResponse.js"
 const registerUser = asyncHandler(async(req,res)=>{
     // get user details
     // validation - not empty
-    // check if user already exist or not : username & email
+    // check if user already exist or not : userName & email
     // check for images
     // check for avtar
     // uplodad in cloudnary
@@ -16,55 +16,63 @@ const registerUser = asyncHandler(async(req,res)=>{
     // check for user creation
     // return response
 
-    const {userName, email, fullName, password} = req.body
+    let { userName, email, fullName, password } = req.body;
+
+    if (!userName || !email || !fullName || !password) {
+        throw new apiError(400, "All fields are required");
+    }
+
+    userName = userName.trim().toLowerCase();
+    email = email.trim().toLowerCase();
+
+    if ([userName, email, fullName, password].some(field => field.trim() === "")) {
+        throw new apiError(400, "Fields cannot be empty");
+    }
+
     console.log("email :",email);
     console.log("userName:",userName);
     
-    // if (fullName === ""){
-    //     throw new apiErrors(400,"full name is required");
-    // }
-
-    if (
-        [userName, email, fullName, password].some((field)=>field?.trim()=== "")
-    ) {
-        throw new apiErrors(400,"all fields are required required");
-    }
-
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or: [{ userName }, { email }]
     })
 
     if (existedUser){
-        throw new apiErrors(409,"user with email or username already exists");
+        throw new apiError(409,"user with email or userName already exists");
+    }
+    console.log("FILES RECEIVED:", req.files);
+    const avatarLocalPath = req?.files?.avatar?.[0]?.path;
+    // const coverImageLocalPath = req?.files?.coverImage?.[0]?.path;
+    let coverImageLocalPath;
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+        coverImageLocalPath = req.files.coverImage[0].path
     }
 
-    const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.avatar[0]?.path;
-
     if (!avatarLocalPath) {
-        throw new apiErrors(400,"Avatar is required");
+        throw new apiError(400,"Avatar is required");
     }
 
     const avatar = await uploadOnCloudinary(avatarLocalPath);
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
     if (!avatar) {
-        throw new apiErrors(400,"Avatar is required");
+        throw new apiError(400,"Avatar is required");
     }
+    
+    
 
-    const newUser = User.create({
+    const newUser = await User.create({
         fullName,
         avatar : avatar.url,
         coverImage : coverImage?.url || "",
         email,
         password,
-        userName : userName.toLowerCase()
+        userName
     })
 
     const createdUser = await User.findById(newUser._id).select(
         "-password -refreshToken"
     )
     if (!createdUser){
-        throw new apiErrors(500,"Something went wrong during the registrations");
+        throw new apiError(500,"Something went wrong during the registrations");
     }
     // Response
     return res.status(201).json(
