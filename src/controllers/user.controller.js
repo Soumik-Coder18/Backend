@@ -4,18 +4,25 @@ import {User} from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import {apiResponse} from "../utils/apiResponse.js"
 
-const generateAccessAndRefreshToken = async(userId)=>
-    {
+const generateAccessAndRefreshToken = async(userId) => {
     try {
         const user = await User.findById(userId)
+        if (!user) {
+            throw new apiError(404, "User not found while generating tokens");
+        }
         const accessToken = user.generateAccessToken()
         const refreshToken = user.generateRefreshToken()
 
         user.refreshToken = refreshToken
         await user.save({ validateBeforeSave: false})
-
+        
+        return { accessToken, refreshToken };
+        
     } catch (error) {
-        throw new apiError(500,"Something went wrong while generating refresh or access token")
+        throw new apiError(
+            error.statusCode || 500,
+            error.message || "Something went wrong while generating refresh or access token"
+        );
     }
 }
 
@@ -106,7 +113,7 @@ const loginUser = asyncHandler(async(req,res)=>{
 
     const {email, userName, password} = req.body;
     
-    if (!userName || !email) {
+    if (!userName && !email) {
         throw new apiError(400,"username and or email required")
     }
 
